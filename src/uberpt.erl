@@ -49,7 +49,9 @@ reline(Line, Tree) ->
 	ast_apply(Tree,
 		fun
 			({raw, X}) -> [{raw, X}];
-			(T) when is_tuple(T), is_integer(element(2,T)) -> [setelement(2,T,Line)]
+			({clauses, L}) -> [{clauses, [reline(Line, X) || X <- L]}];
+			(T) when is_tuple(T), is_integer(element(2,T)) -> [setelement(2,T,Line)];
+			(L) when is_list(L) -> [[reline(Line, X) || X <- L]]
 		end).
 
 quote(_Line, {raw, X}) ->
@@ -75,8 +77,8 @@ strip_fragments([], ASTAcc, FragAcc) ->
 
 ast_apply([String={string, _, _}|Rest], EditFun) ->
 	EditFun(String) ++ ast_apply(Rest, EditFun);
-ast_apply([String={bin_element, _, _, _, _}|Rest], EditFun) ->
-	[ {bin_element, Line, ast_apply(Body, EditFun), ast_apply(N, EditFun), Opt} || {bin_element, Line, Body, N, Opt} <- EditFun(String) ] ++ ast_apply(Rest, EditFun);
+ast_apply([BinElement={bin_element, _, _, _, _}|Rest], EditFun) ->
+	[ {bin_element, Line, ast_apply(Body, EditFun), ast_apply(N, EditFun), Opt} || {bin_element, Line, Body, N, Opt} <- EditFun(BinElement) ] ++ ast_apply(Rest, EditFun);
 ast_apply([Head|Rest], EditFun) ->
 	NewHead = EditFun(Head),
 	case NewHead of
@@ -92,7 +94,7 @@ ast_apply([], _) ->
 ast_apply(String={string, _, _}, EditFun) ->
 	[New] = EditFun(String),
 	New;
-ast_apply(Thing, EditFun) when tuple_size(Thing) > 2; element(1, Thing) =:= nil; element(1, Thing) =:= eof ->
+ast_apply(Thing, EditFun) when tuple_size(Thing) > 2; element(1, Thing) =:= nil; element(1, Thing) =:= eof; element(1, Thing) =:= clauses ->
 	[New] = EditFun(Thing),
 	case New of
 		Thing ->
@@ -106,6 +108,9 @@ ast_apply(Thing, _EditFun) ->
 
 ast_apply_children(Elements, EditFun) when is_list(Elements) ->
 	[ ast_apply_children(Element, EditFun) || Element <- Elements ];
+ast_apply_children({clauses, Clauses}, EditFun) ->
+	% Why?
+	{clauses, [ ast_apply(Clause, EditFun) || Clause <- Clauses ]};
 ast_apply_children(Element, EditFun) ->
 	[Type,Line|Parts] = tuple_to_list(Element),
 	list_to_tuple([Type,Line|[ast_apply(Part, EditFun)||Part<-Parts]]).
