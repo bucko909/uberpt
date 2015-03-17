@@ -24,7 +24,7 @@ parse_transform(AST, _Opts) ->
 				case dict:find(Name, Fragments) of
 					error ->
 						[Call];
-					{ok, {ReplacementParams, ReplacementBody}} ->
+					{ok, {type_1, ReplacementParams, ReplacementBody}} ->
 						[quote(Line, reline(Line, ast_apply(ReplacementBody, replace_vars_fun(ReplacementParams, Params))))]
 				end;
 			(Other) ->
@@ -40,6 +40,19 @@ replace_vars_fun(FragmentParams, CallParams) ->
 					[Var];
 				{ok, N} ->
 					[{raw, lists:nth(N, CallParams)}]
+			end;
+		(Other) ->
+			[Other]
+	end.
+
+quote_vars_fun(VList) ->
+	fun
+		(Var={var, _, Name}) ->
+			case lists:member(Name, VList) of
+				true ->
+					[{raw, Var}];
+				false ->
+					[Var]
 			end;
 		(Other) ->
 			[Other]
@@ -67,9 +80,37 @@ quote(Line, X) when is_integer(X) ->
 quote(Line, X) when is_atom(X) ->
 	{atom, Line, X}.
 
+flatten_cons({cons, _, L, R}) ->
+	[L | flatten_cons(R)];
+flatten_cons({nil, _}) ->
+	[].
+
+make_cons(Line, [L | R]) ->
+	{cons, Line, L, make_cons(Line, R)};
+make_cons(Line, []) ->
+	{nil, Line}.
+
 strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [{clause, _, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	Params = dict:from_list([ {ParamName, N} || {{var, _, ParamName}, N} <- lists:zip(ParamVars,lists:seq(1,length(ParamVars))) ]),
-	strip_fragments(Rest, ASTAcc, [{Name, {Params, Body}}|FragAcc]);
+	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
+strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
+	[
+		InParamsTuple = {tuple, _, [{atom, _, in}, InParamsCons]},
+		OutParamsTuple = {tuple, _, [{atom, _, out}, OutParamsCons]},
+		{tuple, TempLine, [{atom, _, temp}, TempParamsCons]}
+	] = ParamVars,
+	TempParams = flatten_cons(TempParamsCons),
+	NewParamVars = [
+		InParamsTuple,
+		OutParamsTuple,
+		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, 'TempSuffixVar'}]}
+	],
+	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {op, ALine, '++', make_cons(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}} || {var, _, Name} <- TempParams ],
+	AllVars = flatten_cons(InParamsCons) ++ flatten_cons(OutParamsCons) ++ TempParams,
+	NewBody = TempVarsInit ++ quote(0, ast_apply(Body, quote_vars_fun(AllVars))),
+	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
+	io:format("NewFunDef: ~p~n", [NewFunDef]),
+	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
 strip_fragments([Head|Rest], ASTAcc, FragAcc) ->
 	strip_fragments(Rest, [Head|ASTAcc], FragAcc);
 strip_fragments([], ASTAcc, FragAcc) ->
