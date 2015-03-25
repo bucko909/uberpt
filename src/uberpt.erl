@@ -110,7 +110,6 @@ strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName,
 	AllVars = flatten_cons(InParamsCons) ++ flatten_cons(OutParamsCons) ++ TempParams,
 	NewBody = TempVarsInit ++ [make_cons(FLine, [ quote(FLine, X) || X <- ast_apply(Body, quote_vars_fun(AllVars)) ])],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
-	io:format("NewFunDef: ~p~n", [NewFunDef]),
 	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
 strip_fragments([Head|Rest], ASTAcc, FragAcc) ->
 	strip_fragments(Rest, [Head|ASTAcc], FragAcc);
