@@ -46,9 +46,10 @@ replace_vars_fun(FragmentParams, CallParams) ->
 	end.
 
 quote_vars_fun(VList) ->
+	NList = [ begin {var, _, Name} = Var, Name end || Var <- VList ],
 	fun
 		(Var={var, _, Name}) ->
-			case lists:member(Name, VList) of
+			case lists:member(Name, NList) of
 				true ->
 					[{raw, Var}];
 				false ->
@@ -105,9 +106,9 @@ strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName,
 		OutParamsTuple,
 		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, 'TempSuffixVar'}]}
 	],
-	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {op, ALine, '++', make_cons(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}} || {var, _, Name} <- TempParams ],
+	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {tuple, ALine, [{atom, ALine, var}, {integer, ALine, ALine}, {call, ALine, {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}}, [{op, ALine, '++', quote(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}]}]}} || {var, _, Name} <- TempParams ],
 	AllVars = flatten_cons(InParamsCons) ++ flatten_cons(OutParamsCons) ++ TempParams,
-	NewBody = TempVarsInit ++ quote(0, ast_apply(Body, quote_vars_fun(AllVars))),
+	NewBody = TempVarsInit ++ [make_cons(FLine, [ quote(FLine, X) || X <- ast_apply(Body, quote_vars_fun(AllVars)) ])],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
 	io:format("NewFunDef: ~p~n", [NewFunDef]),
 	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
