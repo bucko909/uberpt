@@ -11,7 +11,8 @@
 % Don't do anything clever. It probably won't work!
 
 -export([
-		parse_transform/2
+		parse_transform/2,
+		ast_apply/2
 	]).
 
 parse_transform(AST, _Opts) ->
