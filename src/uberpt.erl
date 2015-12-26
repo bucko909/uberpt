@@ -103,9 +103,14 @@ quote(Line, X) when is_integer(X) ->
 quote(Line, X) when is_atom(X) ->
 	{atom, Line, X}.
 
+deblock_clause(C={clause, _Line, _Match, _Guard, [{call, _Line2, {atom, _Line3, quote_block}, [Param]}]}) ->
+	setelement(5, C, {raw, Param});
+deblock_clause(C) ->
+	C.
+
 make_function(Name, {'fun', Line, {clauses, Clauses=[{clause, _, Match, _Guard, _Body}|_]}}) ->
 	Arity = length(Match),
-	{'function', Line, Name, Arity, Clauses}.
+	{'function', Line, Name, Arity, lists:map(fun deblock_clause/1, Clauses)}.
 
 flatten_cons({cons, _, L, R}) ->
 	[L | flatten_cons(R)];
