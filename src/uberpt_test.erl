@@ -33,3 +33,7 @@ test3_(
 test4() ->
 	A = ast(1),
 	ast(quote(A) + 1).
+
+test5(Ast) ->
+	A = ast(begin x(), y() end),
+	ast_function(foo, fun (A) -> quote(A); ({B}) -> quote(Ast) end).

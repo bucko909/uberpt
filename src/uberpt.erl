@@ -10,8 +10,16 @@
 %   % Returns AST for: f(5, 73).
 %   ast_generator(Param1, ast(73))).
 %
+% generate_add(Extra) ->
+%   % Example: generate_add(ast(53))
+%   % Returns AST for: add(Param1, Param2) -> Param1 + Param2 + 53.
+%   ast_function(add, fun (Param1, Param2) -> Param1 + Param2 + quote(Extra) end).
+%
 % ast/1 is a function injected which takes a single argument and returns the
 % ast for the argument, so that ast(A) becomes {var, Line, 'A'}.
+%
+% ast_function/2 takes a name and a fun, and returns a function definition
+% ready for injection at the top level of a module.
 %
 % quote/1, valid only in ast, allows you to embed erlang into the AST. This
 % doesn't work recursively (right now), so ast(quote(ast(A))) /= ast(A).
@@ -30,6 +38,8 @@ parse_transform(AST, _Opts) ->
 		fun
 			({call, Line, {atom, Line, ast}, [Param]}) ->
 				[quote(Line, Param)];
+			({call, Line, {atom, Line, ast_function}, [Name, Param]}) ->
+				[quote(Line, make_function(Name, Param))];
 			(Call = {call, Line, {atom, _, Name}, Params}) ->
 				case dict:find(Name, Fragments) of
 					error ->
@@ -92,6 +102,10 @@ quote(Line, X) when is_integer(X) ->
 	{integer, Line, X};
 quote(Line, X) when is_atom(X) ->
 	{atom, Line, X}.
+
+make_function(Name, {'fun', Line, {clauses, Clauses=[{clause, _, Match, _Guard, _Body}|_]}}) ->
+	Arity = length(Match),
+	{'function', Line, Name, Arity, Clauses}.
 
 flatten_cons({cons, _, L, R}) ->
 	[L | flatten_cons(R)];
