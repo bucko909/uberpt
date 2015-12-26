@@ -1,11 +1,20 @@
 -module(uberpt).
 
 % -ast_fragment([]).
-% ast_function(Param1, Param2) ->
+% ast_generator(Param1, Param2) ->
 %   f(Param1, Param2).
 %
-% real_function(Param1) ->
-%   generate_module(ast_function(revert(Param1), revert(73))).
+% generate_apply_f_73(Param1) ->
+%   % Param1 should be a syntax tree already!
+%   % Example: generate_apply_f_73(5)
+%   % Returns AST for: f(5, 73).
+%   ast_generator(Param1, ast(73))).
+%
+% ast/1 is a function injected which takes a single argument and returns the
+% ast for the argument, so that ast(A) becomes {var, Line, 'A'}.
+%
+% quote/1, valid only in ast, allows you to embed erlang into the AST. This
+% doesn't work recursively (right now), so ast(quote(ast(A))) /= ast(A).
 %
 % The "call" to ast_function becomes the abstract code for the body of the function.
 % Don't do anything clever. It probably won't work!
@@ -19,7 +28,7 @@ parse_transform(AST, _Opts) ->
 	{PurestAst, Fragments} = strip_fragments(AST, [], []),
 	FinalAst = ast_apply(PurestAst,
 		fun
-			({call, Line, {atom, Line, revert}, [Param]}) ->
+			({call, Line, {atom, Line, ast}, [Param]}) ->
 				[quote(Line, Param)];
 			(Call = {call, Line, {atom, _, Name}, Params}) ->
 				case dict:find(Name, Fragments) of
@@ -71,6 +80,8 @@ reline(Line, Tree) ->
 
 quote(_Line, {raw, X}) ->
 	X;
+quote(_Line1, {call, _Line2, {atom, _Line3, quote}, [Param]}) ->
+	Param;
 quote(Line, X) when is_tuple(X) ->
 	{tuple, Line, [quote(Line, Y) || Y <- tuple_to_list(X)]};
 quote(Line, [X|Y]) ->

@@ -19,7 +19,7 @@ test2(A, B, C) ->
 test(A) ->
 	{
 		test1(),
-		test2(A, revert(2), revert(3))
+		test2(A, ast(2), ast(3))
 	}.
 
 -ast_fragment2([]).
@@ -29,3 +29,7 @@ test3_(
 		{temp, []}
 	) ->
 	Bar = Foo + 1.
+
+test4() ->
+	A = ast(1),
+	ast(quote(A) + 1).
