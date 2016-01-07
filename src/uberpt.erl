@@ -132,10 +132,14 @@ strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName,
 		{tuple, TempLine, [{atom, _, temp}, TempParamsCons]}
 	] = ParamVars,
 	TempParams = flatten_cons(TempParamsCons),
+	TempSuffixVarName = case TempParamsCons of
+		{nil, _} -> '_TempSuffixVar';
+		_ -> 'TempSuffixVar'
+	end,
 	NewParamVars = [
 		InParamsTuple,
 		OutParamsTuple,
-		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, 'TempSuffixVar'}]}
+		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, TempSuffixVarName}]}
 	],
 	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {tuple, ALine, [{atom, ALine, var}, {integer, ALine, ALine}, {call, ALine, {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}}, [{op, ALine, '++', quote(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}]}]}} || {var, _, Name} <- TempParams ],
 	AllVars = flatten_cons(InParamsCons) ++ flatten_cons(OutParamsCons) ++ TempParams,
