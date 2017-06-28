@@ -75,3 +75,16 @@ A different form for `ast_fragment`. You may specify "in params" and "out params
     test({in, [Foo]}, {out, [Bar]}, {temp, [Baz]}) -> Bar = Foo + Baz.
 
 `test({in, [param1]}, {out, [param2]}, {temp_suffix, "blah"})` returns `[{match,_Line,param2,{op,_Line,'+',param1,{var,_Line,'Bazblah'}}}]`.
+
+## `ast_forms_function`
+
+Generate a function which returns the complete AST for all forms between this and the next `-end_ast_forms_function([])`.
+
+    -compile({parse_transform, uberpt}).
+    -ast_forms_function(#{name => ast_forms_stuff, params => ['Param1']}).
+    a() -> Param1.
+    -end_ast_forms_function([]).
+
+`ast_forms_stuff(ast(1))` returns the form for a function called `a` which returns the integer `1`. `params` is optional; if not provided, a 0-arity function will be generated.
+
+Note that any unbound variables in the form currently won't generate compile errors until the generated form is itself compiled (that is to say, dropping `, params => ['Param1']` above would not create a compile warning or error).

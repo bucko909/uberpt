@@ -122,6 +122,31 @@ make_cons(Line, [L | R]) ->
 make_cons(Line, []) ->
 	{nil, Line}.
 
+strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, FragAcc) ->
+	{Inside, [_EndMarker|AfterEndMarker]} =
+		lists:splitwith(
+			fun
+				({attribute, _, end_ast_forms_function, []}) -> false;
+				(_) -> true
+			end,
+			Rest
+		),
+
+	case Params of
+		#{name := Name} when is_atom(Name) ->
+			ok
+	end,
+	case Params of
+		#{params := RawParams} when is_list(RawParams) ->
+			true = lists:all(fun is_atom/1, RawParams),
+			FunParams = [{var, Line, ParamName} || ParamName <- RawParams];
+		_ ->
+			FunParams = []
+	end,
+	% FunParams just happens to be the right shape already.
+	Body = ast_apply(Inside, quote_vars_fun(FunParams)),
+
+	strip_fragments(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [quote(Line, Body)]}]}|ASTAcc], FragAcc);
 strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [{clause, _, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	Params = dict:from_list([ {ParamName, N} || {{var, _, ParamName}, N} <- lists:zip(ParamVars,lists:seq(1,length(ParamVars))) ]),
 	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
