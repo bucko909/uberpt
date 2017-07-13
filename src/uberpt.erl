@@ -86,8 +86,10 @@ deal_with_attributes([{attribute, Line, ast_forms_function, Params}|Rest], ASTAc
 			FunParams = []
 	end,
 	% FunParams just happens to be the right shape already.
-	Body = ast_apply(Inside, quote_vars_fun(FunParams)),
-	deal_with_attributes(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [term_to_ast(Line, Body)]}]}|ASTAcc]);
+	WithQuotedVars = ast_apply(Inside, quote_vars_fun(FunParams)),
+	NewBody = [term_to_ast(Line, WithQuotedVars)],
+	NewFunDef = {function, Line, Name, length(FunParams), [{clause, Line, FunParams, [], NewBody}]},
+	deal_with_attributes(AfterEndMarker, [NewFunDef|ASTAcc]);
 
 deal_with_attributes([{attribute, _, ast_fragment, []}, {function, FLine, FName, Arity, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc) ->
 	% quote the parameters.
