@@ -13,7 +13,7 @@
 % generate_add(Extra) ->
 %   % Example: generate_add(ast(53))
 %   % Returns AST for: add(Param1, Param2) -> Param1 + Param2 + 53.
-%   ast_function(add, fun (Param1, Param2) -> Param1 + Param2 + quote(Extra) end).
+%   ast_function(add, fun (Param1, Param2) -> Param1 + Param2 + term_to_ast(Extra) end).
 %
 % ast/1 is a function injected which takes a single argument and returns the
 % ast for the argument, so that ast(A) becomes {var, Line, 'A'}.
@@ -37,15 +37,15 @@ parse_transform(AST, _Opts) ->
 	FinalAst = ast_apply(PurestAst,
 		fun
 			({call, Line, {atom, Line, ast}, [Param]}) ->
-				[quote(Line, Param)];
+				[term_to_ast(Line, Param)];
 			({call, Line, {atom, Line, ast_function}, [Name, Param]}) ->
-				[quote(Line, make_function(Name, Param))];
+				[term_to_ast(Line, make_function(Name, Param))];
 			(Call = {call, Line, {atom, _, Name}, Params}) ->
 				case dict:find(Name, Fragments) of
 					error ->
 						[Call];
 					{ok, {type_1, ReplacementParams, ReplacementBody}} ->
-						[quote(Line, reline(Line, ast_apply(ReplacementBody, replace_vars_fun(ReplacementParams, Params))))]
+						[term_to_ast(Line, reline(Line, ast_apply(ReplacementBody, replace_vars_fun(ReplacementParams, Params))))]
 				end;
 			(Other) ->
 				[Other]
@@ -88,19 +88,19 @@ reline(Line, Tree) ->
 			(L) when is_list(L) -> [[reline(Line, X) || X <- L]]
 		end).
 
-quote(_Line, {raw, X}) ->
+term_to_ast(_Line, {raw, X}) ->
 	X;
-quote(_Line1, {call, _Line2, {atom, _Line3, quote}, [Param]}) ->
+term_to_ast(_Line1, {call, _Line2, {atom, _Line3, quote}, [Param]}) ->
 	Param;
-quote(Line, X) when is_tuple(X) ->
-	{tuple, Line, [quote(Line, Y) || Y <- tuple_to_list(X)]};
-quote(Line, [X|Y]) ->
-	{cons, Line, quote(Line, X), quote(Line, Y)};
-quote(Line, []) ->
+term_to_ast(Line, X) when is_tuple(X) ->
+	{tuple, Line, [term_to_ast(Line, Y) || Y <- tuple_to_list(X)]};
+term_to_ast(Line, [X|Y]) ->
+	{cons, Line, term_to_ast(Line, X), term_to_ast(Line, Y)};
+term_to_ast(Line, []) ->
 	{nil, Line};
-quote(Line, X) when is_integer(X) ->
+term_to_ast(Line, X) when is_integer(X) ->
 	{integer, Line, X};
-quote(Line, X) when is_atom(X) ->
+term_to_ast(Line, X) when is_atom(X) ->
 	{atom, Line, X}.
 
 deblock_clause(C={clause, _Line, _Match, _Guard, [{call, _Line2, {atom, _Line3, quote_block}, [Param]}]}) ->
@@ -142,13 +142,13 @@ strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, Fr
 	% FunParams just happens to be the right shape already.
 	Body = ast_apply(Inside, quote_vars_fun(FunParams)),
 
-	strip_fragments(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [quote(Line, Body)]}]}|ASTAcc], FragAcc);
+	strip_fragments(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [term_to_ast(Line, Body)]}]}|ASTAcc], FragAcc);
 strip_fragments([{attribute, _, ast_fragment, []}, {function, FLine, FName, Arity, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
-	% Quote the parameters.
+	% quote the parameters.
 	WithQuotedVars = ast_apply(Body, quote_vars_fun(ParamVars)),
 
 	% Then revert the body to an abstract syntax tree.
-	NewBody = [quote(FLine, WithQuotedVars)],
+	NewBody = [term_to_ast(FLine, WithQuotedVars)],
 	NewFunDef = {function, FLine, FName, Arity, [{clause, CLine, ParamVars, [], NewBody}]},
 
 	% Inject and continue to next toplevel form.
@@ -164,7 +164,7 @@ strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, 
 
 	% Generate our replacement function definition.
 	TempVarsInit = lists:map(fun ast_fragment2_create_temp_vars/1, TempParams),
-	NewBody = TempVarsInit ++ [quote(FLine, WithQuotedVars)],
+	NewBody = TempVarsInit ++ [term_to_ast(FLine, WithQuotedVars)],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
 
 	% Inject it and continue to the next toplevel form.
@@ -227,7 +227,7 @@ ast_fragment2_create_temp_vars({var, ALine, Name}) ->
 	%     {match, _, B, Name}
 	%   ].
 
-	NameAsStringAst = quote(ALine, atom_to_list(Name)),
+	NameAsStringAst = term_to_ast(ALine, atom_to_list(Name)),
 	FullNameAst = {op, ALine, '++', NameAsStringAst, {var, ALine, 'TempSuffixVar'}},
 	ErlangListToAtomAst = {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}},
 	FunctionApplicationAst = {call, ALine, ErlangListToAtomAst, [FullNameAst]},
