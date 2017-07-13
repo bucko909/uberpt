@@ -193,8 +193,6 @@ ast_fragment2_create_temp_vars({var, ALine, Name}) ->
 % Recurse over an AST running EditFun on each element.
 % EditFun should return a list of syntax elements (to allow it to delete or inject elements).
 % We also recurse EditFun on each element of its own output.
-ast_apply([String={string, _, _}|Rest], EditFun) ->
-	EditFun(String) ++ ast_apply(Rest, EditFun);
 ast_apply([BinElement={bin_element, _, _, _, _}|Rest], EditFun) ->
 	[ {bin_element, Line, ast_apply(Body, EditFun), ast_apply(N, EditFun), Opt} || {bin_element, Line, Body, N, Opt} <- EditFun(BinElement) ] ++ ast_apply(Rest, EditFun);
 ast_apply([Head|Rest], EditFun) ->
@@ -209,9 +207,6 @@ ast_apply([Head|Rest], EditFun) ->
 	Bits ++ ast_apply(Rest, EditFun);
 ast_apply([], _) ->
 	[];
-ast_apply(String={string, _, _}, EditFun) ->
-	[New] = EditFun(String),
-	New;
 ast_apply(Thing, EditFun) when tuple_size(Thing) > 2; element(1, Thing) =:= nil; element(1, Thing) =:= eof; element(1, Thing) =:= clauses ->
 	[New] = EditFun(Thing),
 	case New of
@@ -226,8 +221,10 @@ ast_apply(Thing, _EditFun) ->
 
 ast_apply_children(Elements, EditFun) when is_list(Elements) ->
 	[ ast_apply_children(Element, EditFun) || Element <- Elements ];
+ast_apply_children(String={string, _, _}, EditFun) ->
+	[New] = EditFun(String),
+	New;
 ast_apply_children({clauses, Clauses}, EditFun) ->
-	% Why?
 	{clauses, [ ast_apply(Clause, EditFun) || Clause <- Clauses ]};
 ast_apply_children(Element, EditFun) ->
 	[Type,Line|Parts] = tuple_to_list(Element),
