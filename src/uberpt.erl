@@ -1,32 +1,5 @@
 -module(uberpt).
 
-% -ast_fragment([]).
-% ast_generator(Param1, Param2) ->
-%   f(Param1, Param2).
-%
-% generate_apply_f_73(Param1) ->
-%   % Param1 should be a syntax tree already!
-%   % Example: generate_apply_f_73(5)
-%   % Returns AST for: f(5, 73).
-%   ast_generator(Param1, ast(73))).
-%
-% generate_add(Extra) ->
-%   % Example: generate_add(ast(53))
-%   % Returns AST for: add(Param1, Param2) -> Param1 + Param2 + 53.
-%   ast_function(add, fun (Param1, Param2) -> Param1 + Param2 + term_to_ast(Extra) end).
-%
-% ast/1 is a function injected which takes a single argument and returns the
-% ast for the argument, so that ast(A) becomes {var, Line, 'A'}.
-%
-% ast_function/2 takes a name and a fun, and returns a function definition
-% ready for injection at the top level of a module.
-%
-% quote/1, valid only in ast, allows you to embed erlang into the AST. This
-% doesn't work recursively (right now), so ast(quote(ast(A))) /= ast(A).
-%
-% The "call" to ast_function becomes the abstract code for the body of the function.
-% Don't do anything clever. It probably won't work!
-
 -export([
 		parse_transform/2,
 		ast_apply/2
