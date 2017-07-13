@@ -150,11 +150,11 @@ strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, Fr
 strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [{clause, _, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	Params = dict:from_list([ {ParamName, N} || {{var, _, ParamName}, N} <- lists:zip(ParamVars,lists:seq(1,length(ParamVars))) ]),
 	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
-strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
+strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	{InParams, OutParams, TempParams} = ast_fragment2_extract_param_vars(ParamVars),
 	NewParamVars = ast_fragment2_replacement_clause(ParamVars),
-	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {tuple, ALine, [{atom, ALine, var}, {integer, ALine, ALine}, {call, ALine, {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}}, [{op, ALine, '++', quote(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}]}]}} || {var, _, Name} <- TempParams ],
 	AllVars = InParams ++ OutParams ++ TempParams,
+	TempVarsInit = lists:map(fun ast_fragment2_create_temp_vars/1, TempParams),
 	NewBody = TempVarsInit ++ [make_cons(FLine, [ quote(FLine, X) || X <- ast_apply(Body, quote_vars_fun(AllVars)) ])],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
 	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
@@ -189,6 +189,44 @@ ast_fragment2_replacement_clause([
 		% Temp parameter is replaced with a temp_suffix param.
 		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, TempSuffixVarName}]}
 	].
+
+ast_fragment2_create_temp_vars({var, ALine, Name}) ->
+	% These clauses are prepended to ast_fragment2 functions.
+	% The code following them will be abstract code to generate the function
+	% body, but will have variables called Name inside -- these need to be
+	% replaced by the abstract code for a variable called Name ++ TempSuffixVar.
+	%
+	% Example:
+	% -ast_fragment2([]).
+	% foo({in, [A]}, {out, [B]}, {temp, [Name]}) ->
+	%   Name = A,
+	%   B = Name.
+	%
+	% Generates a body similar to:
+	%
+	% foo({in, [A]}, {out, [B]}, {temp_suffix, TempSuffixVar}) ->
+	%   % OUR CODE
+	%   Name = {var, ?LINE, list_to_atom("Name" ++ TempSuffixVar)},
+	%   % END OUR CODE
+	%   [
+	%     {match, _, Name, A},
+	%     {match, _, B, Name}
+	%   ].
+
+	NameAsStringAst = quote(ALine, atom_to_list(Name)),
+	FullNameAst = {op, ALine, '++', NameAsStringAst, {var, ALine, 'TempSuffixVar'}},
+	ErlangListToAtomAst = {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}},
+	FunctionApplicationAst = {call, ALine, ErlangListToAtomAst, [FullNameAst]},
+	{match, ALine,
+		{var, ALine, Name}, % Name =
+		{tuple, ALine,
+			[
+				{atom, ALine, var},
+				{integer, ALine, ALine},
+				FunctionApplicationAst
+			]
+		}
+	}.
 
 ast_apply([String={string, _, _}|Rest], EditFun) ->
 	EditFun(String) ++ ast_apply(Rest, EditFun);
