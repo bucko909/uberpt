@@ -152,20 +152,7 @@ strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [
 	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
 strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	{InParams, OutParams, TempParams} = ast_fragment2_extract_param_vars(ParamVars),
-	[
-		InParamsTuple,
-		OutParamsTuple,
-		{tuple, TempLine, _}
-	] = ParamVars,
-	TempSuffixVarName = case TempParams of
-		[] -> '_TempSuffixVar';
-		_ -> 'TempSuffixVar'
-	end,
-	NewParamVars = [
-		InParamsTuple,
-		OutParamsTuple,
-		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, TempSuffixVarName}]}
-	],
+	NewParamVars = ast_fragment2_replacement_clause(ParamVars),
 	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {tuple, ALine, [{atom, ALine, var}, {integer, ALine, ALine}, {call, ALine, {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}}, [{op, ALine, '++', quote(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}]}]}} || {var, _, Name} <- TempParams ],
 	AllVars = InParams ++ OutParams ++ TempParams,
 	NewBody = TempVarsInit ++ [make_cons(FLine, [ quote(FLine, X) || X <- ast_apply(Body, quote_vars_fun(AllVars)) ])],
@@ -184,6 +171,24 @@ ast_fragment2_extract_param_vars(
 	]
 ) ->
 	{flatten_cons(InParamsCons), flatten_cons(OutParamsCons), flatten_cons(TempParamsCons)}.
+
+ast_fragment2_replacement_clause([
+		InParamsTuple,
+		OutParamsTuple,
+		{tuple, TempLine, [{atom, _, temp}, TempParamsCons]}
+]) ->
+	% Prevent compile warnings where there are no temp variables.
+	TempSuffixVarName = case TempParamsCons of
+		{nil, _} -> '_TempSuffixVar';
+		_ -> 'TempSuffixVar'
+	end,
+	[
+		% In/Out params are passed verbatim.
+		InParamsTuple,
+		OutParamsTuple,
+		% Temp parameter is replaced with a temp_suffix param.
+		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, TempSuffixVarName}]}
+	].
 
 ast_apply([String={string, _, _}|Rest], EditFun) ->
 	EditFun(String) ++ ast_apply(Rest, EditFun);
