@@ -61,7 +61,9 @@ You can have (simple) parameters, which will be replaced into the abstract synta
     -compile({parse_transform, uberpt}).
     -ast_fragment([]).
     test1(A) -> A.
+    -ast_fragment([]).
     test2(A) -> B.
+    -ast_fragment([]).
     test3(A) -> A + B.
 
 `test1(1)` returns `[1]`. `test2(1)` returns `[{var, _Line, 'B'}]`. `test3(1)` returns `[{op,_Line,'+',1,{var,_Line,'B'}}]`. Note that only the second of these is a valid abstract syntax tree.
