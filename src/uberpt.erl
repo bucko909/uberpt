@@ -143,9 +143,16 @@ strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, Fr
 	Body = ast_apply(Inside, quote_vars_fun(FunParams)),
 
 	strip_fragments(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [quote(Line, Body)]}]}|ASTAcc], FragAcc);
-strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [{clause, _, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
-	Params = dict:from_list([ {ParamName, N} || {{var, _, ParamName}, N} <- lists:zip(ParamVars,lists:seq(1,length(ParamVars))) ]),
-	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
+strip_fragments([{attribute, _, ast_fragment, []}, {function, FLine, FName, Arity, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
+	% Quote the parameters.
+	WithQuotedVars = ast_apply(Body, quote_vars_fun(ParamVars)),
+
+	% Then revert the body to an abstract syntax tree.
+	NewBody = [quote(FLine, WithQuotedVars)],
+	NewFunDef = {function, FLine, FName, Arity, [{clause, CLine, ParamVars, [], NewBody}]},
+
+	% Inject and continue to next toplevel form.
+	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
 
 strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	{InParams, OutParams, TempParams} = ast_fragment2_extract_param_vars(ParamVars),
