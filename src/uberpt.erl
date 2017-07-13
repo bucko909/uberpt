@@ -190,6 +190,9 @@ ast_fragment2_create_temp_vars({var, ALine, Name}) ->
 		}
 	}.
 
+% Recurse over an AST running EditFun on each element.
+% EditFun should return a list of syntax elements (to allow it to delete or inject elements).
+% We also recurse EditFun on each element of its own output.
 ast_apply([String={string, _, _}|Rest], EditFun) ->
 	EditFun(String) ++ ast_apply(Rest, EditFun);
 ast_apply([BinElement={bin_element, _, _, _, _}|Rest], EditFun) ->
