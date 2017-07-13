@@ -117,11 +117,6 @@ flatten_cons({cons, _, L, R}) ->
 flatten_cons({nil, _}) ->
 	[].
 
-make_cons(Line, [L | R]) ->
-	{cons, Line, L, make_cons(Line, R)};
-make_cons(Line, []) ->
-	{nil, Line}.
-
 strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, FragAcc) ->
 	{Inside, [_EndMarker|AfterEndMarker]} =
 		lists:splitwith(
@@ -155,7 +150,9 @@ strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, 
 	NewParamVars = ast_fragment2_replacement_clause(ParamVars),
 	AllVars = InParams ++ OutParams ++ TempParams,
 	TempVarsInit = lists:map(fun ast_fragment2_create_temp_vars/1, TempParams),
-	NewBody = TempVarsInit ++ [make_cons(FLine, [ quote(FLine, X) || X <- ast_apply(Body, quote_vars_fun(AllVars)) ])],
+	% Replace all known variables in the AST with `quote` calls.
+	WithQuotedVars = ast_apply(Body, quote_vars_fun(AllVars)),
+	NewBody = TempVarsInit ++ [quote(FLine, WithQuotedVars)],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
 	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
 strip_fragments([Head|Rest], ASTAcc, FragAcc) ->
