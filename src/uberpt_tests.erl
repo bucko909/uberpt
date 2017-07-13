@@ -85,3 +85,37 @@ all_test_() ->
 			ast_forms_stuff(ast(Test), ast(an_atom), i_am_ignored)
 		)
 	].
+
+ast_apply_test_() ->
+	TestTerms = [
+		ast("foooo"),
+		ast([$f, $o, $o]),
+		ast([0, 3, 4]),
+		ast(x),
+		ast(1),
+		ast(A),
+		ast({}),
+		ast([]),
+		ast([1|2]),
+		ast([1, 2]),
+		ast(_),
+		ast('_'),
+		ast(foo()),
+		ast(<<>>),
+		ast(<<10>>),
+		ast(<<1:5/little-unsigned-integer>>),
+		ast(<<"foo"/binary>>),
+		ast(<<"foo">>),
+		ast({[{[<<>>]}]})
+	],
+	[
+		% Check that ast_apply with the list-identity function does nothing.
+		?_assertEqual(X, uberpt:ast_apply(X, fun (A) -> [A] end))
+		|| X <- TestTerms
+	] ++ [
+		% Test some ast functions.
+		?_assertEqual(ast(X - Y), uberpt:ast_apply(ast(X + Y), fun ({op, Line, '+', X, Y}) -> [{op, Line, '-', X, Y}]; (Other) -> [Other] end)),
+		?_assertEqual(ast([<<1, 2, "foo">>]), uberpt:ast_apply(ast([<<1, "foo">>]), fun (Elt={bin_element, Line, {integer, Line, X}, Type, Opts}) -> [Elt, {bin_element, Line, {integer, Line, X + 1}, Type, Opts}]; (Other) -> [Other] end)),
+		?_assertEqual(ast(<<6:6/integer>>), uberpt:ast_apply(ast(<<5:5/integer>>), fun ({integer, Line, 5}) -> [{integer, Line, 6}]; (Other) -> [Other] end)),
+		?_assertEqual(ast([<<>>]), uberpt:ast_apply(ast([<<1, "foo">>]), fun (Elt={bin_element, _, _, _, _}) -> []; (Other) -> [Other] end))
+	].
