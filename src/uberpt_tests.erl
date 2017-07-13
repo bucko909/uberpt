@@ -22,6 +22,15 @@ ast_fragment2_params(
 	) ->
 	Bar = Foo + 1.
 
+-ast_fragment2([]).
+ast_fragment2_temp_params(
+		{in, [Foo]},
+		{out, [Bar]},
+		{temp, [Baz]}
+	) ->
+	Baz = Foo,
+	Bar = Baz.
+
 test4() ->
 	A = ast(1),
 	ast(quote(A) + 1).
@@ -60,6 +69,13 @@ all_test_() ->
 			]
 			,
 			ast_fragment2_params({in, [ast(TestInVar)]}, {out, [ast(TestOutVar)]}, {temp_suffix, "NotNeeded"})),
+		?_assertMatch(
+			[
+				{match, _, {var, _, 'BazTempTest'}, {var, _, 'TestInVar'}},
+				{match, _, {var, _, 'TestOutVar'}, {var, _, 'BazTempTest'}}
+			]
+			,
+			ast_fragment2_temp_params({in, [ast(TestInVar)]}, {out, [ast(TestOutVar)]}, {temp_suffix, "TempTest"})),
 		?_assertMatch(
 			[
 				{function, _, 'a', 0, [{clause, _, [], [], [{atom, _, ok}]}]},
