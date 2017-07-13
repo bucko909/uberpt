@@ -6,38 +6,20 @@
 	]).
 
 parse_transform(AST, _Opts) ->
-	{PurestAst, Fragments} = strip_fragments(AST, [], []),
-	FinalAst = ast_apply(PurestAst,
-		fun
-			({call, Line, {atom, Line, ast}, [Param]}) ->
-				[term_to_ast(Line, Param)];
-			({call, Line, {atom, Line, ast_function}, [Name, Param]}) ->
-				[term_to_ast(Line, make_function(Name, Param))];
-			(Call = {call, Line, {atom, _, Name}, Params}) ->
-				case dict:find(Name, Fragments) of
-					error ->
-						[Call];
-					{ok, {type_1, ReplacementParams, ReplacementBody}} ->
-						[term_to_ast(Line, reline(Line, ast_apply(ReplacementBody, replace_vars_fun(ReplacementParams, Params))))]
-				end;
-			(Other) ->
-				[Other]
-		end),
-	FinalAst.
+	% First deal with all ast top-level attributes.
+	{PurestAst, _} = deal_with_attributes(AST, [], []),
+	% Now fix any calls to parse-transformed functions.
+	ast_apply(PurestAst, fun deal_with_ast_functions/1).
 
-replace_vars_fun(FragmentParams, CallParams) ->
-	fun
-		(Var={var, _, Name}) ->
-			case dict:find(Name, FragmentParams) of
-				error ->
-					[Var];
-				{ok, N} ->
-					[{raw, lists:nth(N, CallParams)}]
-			end;
-		(Other) ->
-			[Other]
-	end.
+deal_with_ast_functions({call, Line, {atom, Line, ast}, [Param]}) ->
+	[term_to_ast(Line, Param)];
+deal_with_ast_functions({call, Line, {atom, Line, ast_function}, [Name, Param]}) ->
+	[term_to_ast(Line, make_function(Name, Param))];
+deal_with_ast_functions(Other) ->
+	[Other].
 
+% Replace each instance of Var={var, _, Name} with {raw, Var}.
+% We use this prior to an term_to_ast/1 call in function generators.
 quote_vars_fun(VList) ->
 	NList = [ begin {var, _, Name} = Var, Name end || Var <- VList ],
 	fun
@@ -51,15 +33,6 @@ quote_vars_fun(VList) ->
 		(Other) ->
 			[Other]
 	end.
-
-reline(Line, Tree) ->
-	ast_apply(Tree,
-		fun
-			({raw, X}) -> [{raw, X}];
-			({clauses, L}) -> [{clauses, [reline(Line, X) || X <- L]}];
-			(T) when is_tuple(T), is_integer(element(2,T)) -> [setelement(2,T,Line)];
-			(L) when is_list(L) -> [[reline(Line, X) || X <- L]]
-		end).
 
 term_to_ast(_Line, {raw, X}) ->
 	X;
@@ -91,7 +64,7 @@ flatten_cons({nil, _}) ->
 	[].
 
 
-strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, FragAcc) ->
+deal_with_attributes([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, FragAcc) ->
 	{Inside, [_EndMarker|AfterEndMarker]} =
 		lists:splitwith(
 			fun
@@ -114,9 +87,9 @@ strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, Fr
 	end,
 	% FunParams just happens to be the right shape already.
 	Body = ast_apply(Inside, quote_vars_fun(FunParams)),
+	deal_with_attributes(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [term_to_ast(Line, Body)]}]}|ASTAcc], FragAcc);
 
-	strip_fragments(AfterEndMarker, [{function, Line, Name, length(FunParams), [{clause, Line, FunParams, _Guards=[], [term_to_ast(Line, Body)]}]}|ASTAcc], FragAcc);
-strip_fragments([{attribute, _, ast_fragment, []}, {function, FLine, FName, Arity, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
+deal_with_attributes([{attribute, _, ast_fragment, []}, {function, FLine, FName, Arity, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	% quote the parameters.
 	WithQuotedVars = ast_apply(Body, quote_vars_fun(ParamVars)),
 
@@ -125,9 +98,9 @@ strip_fragments([{attribute, _, ast_fragment, []}, {function, FLine, FName, Arit
 	NewFunDef = {function, FLine, FName, Arity, [{clause, CLine, ParamVars, [], NewBody}]},
 
 	% Inject and continue to next toplevel form.
-	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
+	deal_with_attributes(Rest, [NewFunDef|ASTAcc], FragAcc);
 
-strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
+deal_with_attributes([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	{InParams, OutParams, TempParams} = ast_fragment2_extract_param_vars(ParamVars),
 	NewParamVars = ast_fragment2_replacement_clause(ParamVars),
 
@@ -141,12 +114,12 @@ strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, 
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
 
 	% Inject it and continue to the next toplevel form.
-	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
+	deal_with_attributes(Rest, [NewFunDef|ASTAcc], FragAcc);
 
-strip_fragments([Head|Rest], ASTAcc, FragAcc) ->
-	strip_fragments(Rest, [Head|ASTAcc], FragAcc);
+deal_with_attributes([Head|Rest], ASTAcc, FragAcc) ->
+	deal_with_attributes(Rest, [Head|ASTAcc], FragAcc);
 
-strip_fragments([], ASTAcc, FragAcc) ->
+deal_with_attributes([], ASTAcc, FragAcc) ->
 	{lists:reverse(ASTAcc), dict:from_list(FragAcc)}.
 
 
