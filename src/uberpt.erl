@@ -151,14 +151,14 @@ strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [
 	Params = dict:from_list([ {ParamName, N} || {{var, _, ParamName}, N} <- lists:zip(ParamVars,lists:seq(1,length(ParamVars))) ]),
 	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
 strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
+	{InParams, OutParams, TempParams} = ast_fragment2_extract_param_vars(ParamVars),
 	[
-		InParamsTuple = {tuple, _, [{atom, _, in}, InParamsCons]},
-		OutParamsTuple = {tuple, _, [{atom, _, out}, OutParamsCons]},
-		{tuple, TempLine, [{atom, _, temp}, TempParamsCons]}
+		InParamsTuple,
+		OutParamsTuple,
+		{tuple, TempLine, _}
 	] = ParamVars,
-	TempParams = flatten_cons(TempParamsCons),
-	TempSuffixVarName = case TempParamsCons of
-		{nil, _} -> '_TempSuffixVar';
+	TempSuffixVarName = case TempParams of
+		[] -> '_TempSuffixVar';
 		_ -> 'TempSuffixVar'
 	end,
 	NewParamVars = [
@@ -167,7 +167,7 @@ strip_fragments([{attribute, ALine, ast_fragment2, []}, {function, FLine, FName,
 		{tuple, TempLine, [{atom, TempLine, temp_suffix}, {var, TempLine, TempSuffixVarName}]}
 	],
 	TempVarsInit = [ {match, ALine, {var, ALine, Name}, {tuple, ALine, [{atom, ALine, var}, {integer, ALine, ALine}, {call, ALine, {remote, ALine, {atom, ALine, erlang}, {atom, ALine, list_to_atom}}, [{op, ALine, '++', quote(ALine, atom_to_list(Name)), {var, ALine, 'TempSuffixVar'}}]}]}} || {var, _, Name} <- TempParams ],
-	AllVars = flatten_cons(InParamsCons) ++ flatten_cons(OutParamsCons) ++ TempParams,
+	AllVars = InParams ++ OutParams ++ TempParams,
 	NewBody = TempVarsInit ++ [make_cons(FLine, [ quote(FLine, X) || X <- ast_apply(Body, quote_vars_fun(AllVars)) ])],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
 	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
@@ -175,6 +175,15 @@ strip_fragments([Head|Rest], ASTAcc, FragAcc) ->
 	strip_fragments(Rest, [Head|ASTAcc], FragAcc);
 strip_fragments([], ASTAcc, FragAcc) ->
 	{lists:reverse(ASTAcc), dict:from_list(FragAcc)}.
+
+ast_fragment2_extract_param_vars(
+	[
+		{tuple, _, [{atom, _, in}, InParamsCons]},
+		{tuple, _, [{atom, _, out}, OutParamsCons]},
+		{tuple, _, [{atom, _, temp}, TempParamsCons]}
+	]
+) ->
+	{flatten_cons(InParamsCons), flatten_cons(OutParamsCons), flatten_cons(TempParamsCons)}.
 
 ast_apply([String={string, _, _}|Rest], EditFun) ->
 	EditFun(String) ++ ast_apply(Rest, EditFun);
