@@ -4,6 +4,8 @@ Erlang support library for writing parse transforms.
 
 Use this *as* a parse transform.
 
+Examples below frequently use atoms in place of valid syntax trees to simplify the documentation; in your own code you might pass `quote(ConstantHere)` or some other value which resolves to a valid abstract expression.
+
 ## `ast`
 
 Calls to `ast/1` will be replaced with the abstract syntax tree of their parameter. This can be used as shorthand for declaring variables and so-on.
@@ -66,7 +68,7 @@ You can have (simple) parameters, which will be replaced into the abstract synta
     -ast_fragment([]).
     test3(A) -> A + B.
 
-`test1(1)` returns `[1]`. `test2(1)` returns `[{var, _Line, 'B'}]`. `test3(1)` returns `[{op,_Line,'+',1,{var,_Line,'B'}}]`. Note that only the second of these is a valid abstract syntax tree.
+`test1(1)` returns `[1]`. `test2(1)` returns `[{var, _Line, 'B'}]`. `test3(1)` returns `[{op, _Line, '+', 1, {var, _Line, 'B'}}]`. Note that only the second of these is a valid abstract syntax tree.
 
 ## `ast_fragment2`
 
@@ -76,7 +78,7 @@ A different form for `ast_fragment`. You may specify "in params" and "out params
     -ast_fragment2([]).
     test({in, [Foo]}, {out, [Bar]}, {temp, [Baz]}) -> Bar = Foo + Baz.
 
-`test({in, [param1]}, {out, [param2]}, {temp_suffix, "blah"})` returns `[{match,_Line,param2,{op,_Line,'+',param1,{var,_Line,'Bazblah'}}}]`.
+`test({in, [param1]}, {out, [param2]}, {temp_suffix, "blah"})` returns `[{match, _Line, param2, {op, _Line, '+', param1, {var, _Line, 'Bazblah'}}}]`.
 
 ## `ast_forms_function`
 
