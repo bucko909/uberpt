@@ -117,6 +117,7 @@ flatten_cons({cons, _, L, R}) ->
 flatten_cons({nil, _}) ->
 	[].
 
+
 strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, FragAcc) ->
 	{Inside, [_EndMarker|AfterEndMarker]} =
 		lists:splitwith(
@@ -145,20 +146,29 @@ strip_fragments([{attribute, Line, ast_forms_function, Params}|Rest], ASTAcc, Fr
 strip_fragments([{attribute, _, ast_fragment, []}, {function, _, Name, _Arity, [{clause, _, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	Params = dict:from_list([ {ParamName, N} || {{var, _, ParamName}, N} <- lists:zip(ParamVars,lists:seq(1,length(ParamVars))) ]),
 	strip_fragments(Rest, ASTAcc, [{Name, {type_1, Params, Body}}|FragAcc]);
+
 strip_fragments([{attribute, _, ast_fragment2, []}, {function, FLine, FName, 3, [{clause, CLine, ParamVars, _Guard=[], Body}]} | Rest], ASTAcc, FragAcc) ->
 	{InParams, OutParams, TempParams} = ast_fragment2_extract_param_vars(ParamVars),
 	NewParamVars = ast_fragment2_replacement_clause(ParamVars),
-	AllVars = InParams ++ OutParams ++ TempParams,
-	TempVarsInit = lists:map(fun ast_fragment2_create_temp_vars/1, TempParams),
+
 	% Replace all known variables in the AST with `quote` calls.
+	AllVars = InParams ++ OutParams ++ TempParams,
 	WithQuotedVars = ast_apply(Body, quote_vars_fun(AllVars)),
+
+	% Generate our replacement function definition.
+	TempVarsInit = lists:map(fun ast_fragment2_create_temp_vars/1, TempParams),
 	NewBody = TempVarsInit ++ [quote(FLine, WithQuotedVars)],
 	NewFunDef = {function, FLine, FName, 3, [{clause, CLine, NewParamVars, [], NewBody}]},
+
+	% Inject it and continue to the next toplevel form.
 	strip_fragments(Rest, [NewFunDef|ASTAcc], FragAcc);
+
 strip_fragments([Head|Rest], ASTAcc, FragAcc) ->
 	strip_fragments(Rest, [Head|ASTAcc], FragAcc);
+
 strip_fragments([], ASTAcc, FragAcc) ->
 	{lists:reverse(ASTAcc), dict:from_list(FragAcc)}.
+
 
 ast_fragment2_extract_param_vars(
 	[
