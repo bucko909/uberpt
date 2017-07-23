@@ -34,6 +34,17 @@ quote_vars_fun(VList) ->
 			[Other]
 	end.
 
+rename_attributes({attribute, Line, Name, Data}) ->
+	Fixed = case atom_to_list(Name) of
+		"uberpt_raw_" ++ RealName ->
+			list_to_atom(RealName);
+		_ ->
+			Name
+	end,
+	[{attribute, Line, Fixed, Data}];
+rename_attributes(Other) ->
+	[Other].
+
 term_to_ast(_Line, {raw, X}) ->
 	X;
 term_to_ast(_Line1, {call, _Line2, {atom, _Line3, quote}, [Param]}) ->
@@ -87,7 +98,8 @@ deal_with_attributes([{attribute, Line, ast_forms_function, Params}|Rest], ASTAc
 	end,
 	% FunParams just happens to be the right shape already.
 	WithQuotedVars = ast_apply(Inside, quote_vars_fun(FunParams)),
-	NewBody = [term_to_ast(Line, WithQuotedVars)],
+	WithFixedNames = ast_apply(WithQuotedVars, fun rename_attributes/1),
+	NewBody = [term_to_ast(Line, WithFixedNames)],
 	NewFunDef = {function, Line, Name, length(FunParams), [{clause, Line, FunParams, [], NewBody}]},
 	deal_with_attributes(AfterEndMarker, [NewFunDef|ASTAcc]);
 
@@ -195,6 +207,10 @@ ast_fragment2_create_temp_vars({var, ALine, Name}) ->
 % We also recurse EditFun on children of its own output.
 ast_apply([BinElement={bin_element, _, _, _, _}|Rest], EditFun) ->
 	[ {bin_element, Line, ast_apply(Body, EditFun), ast_apply(N, EditFun), Opt} || {bin_element, Line, Body, N, Opt} <- EditFun(BinElement) ] ++ ast_apply(Rest, EditFun);
+ast_apply([Attribute={attribute, _, _, _}|Rest], EditFun) ->
+	% The data part of an attribute isn't actually an AST -- it's the raw term
+	% from the source. So we don't recurse into the data.
+	EditFun(Attribute) ++ ast_apply(Rest, EditFun);
 ast_apply([Head|Rest], EditFun) ->
 	NewHead = EditFun(Head),
 	case NewHead of
