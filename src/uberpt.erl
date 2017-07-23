@@ -206,6 +206,8 @@ ast_fragment2_create_temp_vars({var, ALine, Name}) ->
 % EditFun should return a list of syntax elements (to allow it to delete or inject elements).
 % We also recurse EditFun on children of its own output.
 ast_apply([BinElement={bin_element, _, _, _, _}|Rest], EditFun) ->
+	% Opt isn't an AST (it's a list of atoms), so we can't just use
+	% `ast_apply_children`.
 	[ {bin_element, Line, ast_apply(Body, EditFun), ast_apply(N, EditFun), Opt} || {bin_element, Line, Body, N, Opt} <- EditFun(BinElement) ] ++ ast_apply(Rest, EditFun);
 ast_apply([Attribute={attribute, _, _, _}|Rest], EditFun) ->
 	% The data part of an attribute isn't actually an AST -- it's the raw term
@@ -246,5 +248,5 @@ ast_apply_children(String={string, _, _}, EditFun) ->
 ast_apply_children({clauses, Clauses}, EditFun) ->
 	{clauses, [ ast_apply(Clause, EditFun) || Clause <- Clauses ]};
 ast_apply_children(Element, EditFun) ->
-	[Type,Line|Parts] = tuple_to_list(Element),
-	list_to_tuple([Type,Line|[ast_apply(Part, EditFun)||Part<-Parts]]).
+	[Type, Line|Parts] = tuple_to_list(Element),
+	list_to_tuple([Type, Line|[ast_apply(Part, EditFun)||Part<-Parts]]).
