@@ -1,2 +1,17 @@
 *.beam
 ebin
+.rebar3
+_*
+.eunit
+*.o
+*.plt
+*.swp
+*.swo
+.erlang.cookie
+log
+erl_crash.dump
+.rebar
+logs
+_build
+.idea
+
