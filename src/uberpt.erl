@@ -49,6 +49,8 @@ term_to_ast(_Line, {raw, X}) ->
 	X;
 term_to_ast(_Line1, {call, _Line2, {atom, _Line3, quote}, [Param]}) ->
 	Param;
+term_to_ast(_Line1, {tuple, _Line2, [{atom, _Line3, '$uberpt_quote'}, Param]}) ->
+	Param;
 term_to_ast(Line, X) when is_tuple(X) ->
 	{tuple, Line, [term_to_ast(Line, Y) || Y <- tuple_to_list(X)]};
 term_to_ast(Line, [X|Y]) ->
