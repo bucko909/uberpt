@@ -48,6 +48,12 @@ Example:
 
 Note the first clause is an invalid syntax tree.
 
+## `'$uberpt_quote'`
+
+Newer erlangs report syntax errors if you write a function call in a match clause. As an alternative, `quote(X)` can be replaced with `{'$uberpt_quote', X}`. For example, `ast(fun ({'$uberpt_quote', X}) -> ok end)` will insert the abstract code `X` as the first match in the function clause, being replaced with:
+
+    {'fun', _Line, {clauses, [{clause, _Line, [X], [], [{atom, _Line, ok}]}]}}
+
 ## `ast_fragment`
 
 Preceed a function declaration with `-ast_fragment([]).` to cause the function to return its own abstract syntax tree. Note that this is a *list* of syntax elements.

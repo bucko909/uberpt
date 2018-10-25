@@ -83,6 +83,12 @@ all_test_() ->
 				{function, _, 'a', 1, [{clause, _, [{atom, _, an_atom}], [], [{var, _, 'Test'}]}]}
 			],
 			ast_forms_stuff(ast(Test), ast(an_atom), i_am_ignored)
+		),
+		?_assertMatch(
+			{'fun', _, {clauses,
+				[{clause, _, [completely_invalid_ast], [], [{atom, _, ok}]}]
+			}},
+			ast(fun ({'$uberpt_quote', completely_invalid_ast}) -> ok end)
 		)
 	].
 
